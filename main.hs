@@ -18,14 +18,14 @@ import Types
 import Text.Pretty.Simple
 
 {- Initializes the user provided network for the Goldberg algorithm -}
-goldbergInitialize net@(N vs es s t) = foldr (flip push) (toEdgetendedNetwork net) (getRawOutEdges es s)
+goldbergInitialize net@(N vs es s t) = foldr (flip push) (toComputeNetwork net) (getRawOutEdges es s)
 
 getRawOutEdges :: [E] -> Int -> [(VertId, VertId)]
 getRawOutEdges es from = map (\(E fr to _) -> (fr, to)) (filter (\(E fr to _) -> fr == from) es)
 
 {- Converts user network to representation for the algorithm calculations -}
-toEdgetendedNetwork :: N -> Network
-toEdgetendedNetwork (N vs es s t) = Network vss ess s t (replicate (length vs + 1) [])
+toComputeNetwork :: N -> Network
+toComputeNetwork (N vs es s t) = Network vss ess s t (replicate (length vs + 1) [])
   where
     vss = map fv vs -- Edgetended vertices
     ess = map fe es  ++ map feRev es -- Convert edges and add their reverses
@@ -41,6 +41,14 @@ toEdgetendedNetwork (N vs es s t) = Network vss ess s t (replicate (length vs + 
 
 {- Gets only normal vertices from the network -}
 normVertices (Network vs es s t _) = filter (\(Vertex n h ex des) -> n /= s && n /= t) vs
+
+
+-- goldbergStep net@(Network vs es s t netQ) vertId = if isNothing pushEdgeIds  -- If no pushable edge found
+--     then push net pushEdgeIds -- We can push => push 
+--     else liftVertex net vertId 1 -- Cannot push => lift
+--         where
+--             pushEdgeIds = getPushableEdgeIds
+
 
 {- Pushes possible maximum through the provided edge -}
 push :: Network -> (VertId, VertId) -> Network
@@ -103,17 +111,25 @@ appendToKthList list listToAppend h = result
 liftVertex :: Network -> VertId -> Int -> Network
 liftVertex net@(Network vs es s t bucketQueue) verToLiftId diff = Network updatedVertices es s t bucketQueue
     where 
-        -- Outcoming edges
-        outEdges = getOutEdges es verToLiftId
-
-        -- Outcomming DESCENDING edges
-        outDescEdges = filterOnlyDesc vs outEdges diff
-
-        -- Get updated vertices
-        updatedVertices = [ newV | vert@(Vertex vId h ex _) <- vs , 
+        -- Get vertices with updated height
+        liftedVerts = [ newV | vert@(Vertex vId h ex des) <- vs , 
             let newV = if vId == verToLiftId 
-                    then Vertex vId (h + diff) ex outDescEdges -- Updated vertex
+                    then Vertex vId (h + diff) ex des -- Updated vertex
                     else vert ] -- Unchanged vertices
+
+        -- Recompute also descending edges
+        updatedVertices = recomputeDescLists liftedVerts es
+
+
+recomputeDescLists vs es = map updateFn vs
+    where
+        updateFn (Vertex vId h ex des) = (Vertex vId h ex outDescEdges)
+            where
+                -- Outcoming edges
+                outEdges = getOutEdges es vId
+
+                -- Outcomming DESCENDING edges
+                outDescEdges = filterOnlyDesc vs outEdges 0
 
 
 {- Filteres out edges that are not descending after applying `diff` lift. -}
@@ -157,33 +173,32 @@ t_q1 = [[1, 4, 5, 6], [], [3, 2]]
 
 {- Runs all the tests. -}
 testAll = do 
-    putStrLn "TEST: `getCleanQueue`:"
-    r1 <- return test_getCleanQueue
-    putStrLn ""
+    let r1 = test_getCleanQueue
+        ro = test_other
+        r2 = test_goldbergInitialize
+        r3 = test_push
+        r4 = test_liftVertex
     
-    putStrLn "TEST: `goldbergInitialize`:"
-    r2 <- return test_goldbergInitialize
-    putStrLn ""
-    
-    putStrLn "TEST: `push`:"
-    r3 <- return test_push
-    putStrLn ""
-
-    return (and r1 && and r2 && and r3)
+    putStrLn "Running all tests!"
+    return (and r1 && and r2 && and r3 && and r4 && and ro)
 
 {- TEST: `filterOnlyDesc` -}
-test_filterOnlyDesc = filterOnlyDesc vs outEdges 10
+test_other = [test_filterOnlyDesc, test_getOutEdges, test_getInEdges]
+
+test_filterOnlyDesc = filterOnlyDesc vs outEdges 10 == [(1,0),(1,2),(1,3)]
     where 
        net@(Network vs es s t netQ) = goldbergInitialize net1
        outEdges = getOutEdges es 1
 
 {- TEST: `getOutEdges` -}
-test_getOutEdges = getOutEdges es 0
+test_getOutEdges = getOutEdges es 0 == 
+        [Edge {edge_fr = 0, edge_to = 1, eedge_c = 2 / 1, edge_f = 2 / 1},Edge {edge_fr = 0, edge_to = 2, eedge_c = 4 / 1, edge_f = 4 / 1}]
     where 
        net@(Network vs es s t netQ) = goldbergInitialize net1
 
 {- TEST: `getInEdges` -}
-test_getInEdges = getInEdges es 3
+test_getInEdges = getInEdges es 3 == 
+        [Edge {edge_fr = 2, edge_to = 3, eedge_c = 5 / 1, edge_f = 0 / 1},Edge {edge_fr = 1, edge_to = 3, eedge_c = 1 / 1, edge_f = 0 / 1}]
     where 
        net@(Network vs es s t netQ) = goldbergInitialize net1
 
@@ -274,6 +289,8 @@ test1_pushInitNet1 =
 
 
 {- TEST: `liftVertex` -}
+test_liftVertex = [test1_liftVertex, test2_liftVertex]
+
 test1_liftVertex = 
     let 
        net@(Network vs es s t netQ) = goldbergInitialize net1
@@ -315,3 +332,41 @@ test1_liftVertex =
         , network_t = 3
         , network_Q = [[2, 1], [], [], [], []]
         })
+
+test2_liftVertex = 
+    liftVertex (goldbergInitialize net1) 1 10 ==
+    (Network
+    { network_vs =
+        [ Vertex
+            { vertex_name = 0
+            , vertex_h = 4
+            , vertex_ex = 9 / 1
+            , vertex_des = [(0, 2)]
+            }
+        , Vertex
+            { vertex_name = 1
+            , vertex_h = 10
+            , vertex_ex = 2 / 1
+            , vertex_des = [(1, 0), (1, 2), (1, 3)]
+            }
+        , Vertex
+            {vertex_name = 2, vertex_h = 0, vertex_ex = 4 / 1, vertex_des = []}
+        , Vertex
+            {vertex_name = 3, vertex_h = 0, vertex_ex = 0 / 1, vertex_des = []}
+        ]
+    , network_es =
+        [ Edge {edge_fr = 0, edge_to = 1, eedge_c = 2 / 1, edge_f = 2 / 1}
+        , Edge {edge_fr = 1, edge_to = 0, eedge_c = 2 / 1, edge_f = (-2) / 1}
+        , Edge {edge_fr = 0, edge_to = 2, eedge_c = 4 / 1, edge_f = 4 / 1}
+        , Edge {edge_fr = 2, edge_to = 0, eedge_c = 4 / 1, edge_f = (-4) / 1}
+        , Edge {edge_fr = 1, edge_to = 2, eedge_c = 3 / 1, edge_f = 0 / 1}
+        , Edge {edge_fr = 2, edge_to = 3, eedge_c = 5 / 1, edge_f = 0 / 1}
+        , Edge {edge_fr = 1, edge_to = 3, eedge_c = 1 / 1, edge_f = 0 / 1}
+        , Edge {edge_fr = 2, edge_to = 1, eedge_c = 3 / 1, edge_f = 0 / 1}
+        , Edge {edge_fr = 3, edge_to = 2, eedge_c = 5 / 1, edge_f = 0 / 1}
+        , Edge {edge_fr = 3, edge_to = 1, eedge_c = 1 / 1, edge_f = 0 / 1}
+        ]
+    , network_s = 0
+    , network_t = 3
+    , network_Q = [[2, 1], [], [], [], []]
+    })
