@@ -11,13 +11,14 @@ IMPLEMENTATION:
         1) `initialize` - Intializes the heights and sends the first preflow (wave) through outcoming edges of the SOURCE (`s`) vertex.
         2) Until there are same ACTIVE nodes, do `processVertex(GoldNet net, Vertex v)`
 
-DATA STRUCTURES:
+DATA TYPES:
     FlowNet - Flow network (G, s, t, c) where we use G as list of neighbours where each edge also holds capacity ().
 
 -}
 
 -- Third party libs
 import Text.Pretty.Simple -- USAGE: stack ghci --package pretty-simple ./main.hs
+import Data.Maybe
 
 -- My modules
 import Types
@@ -30,7 +31,7 @@ getRawOutEdges es from = map (\(E fr to _) -> (fr, to)) (filter (\(E fr to _) ->
 
 {- Converts user network to representation for the algorithm calculations -}
 toComputeNetwork :: N -> Network
-toComputeNetwork (N vs es s t) = Network vss ess s t (replicate (length vs + 1) [])
+toComputeNetwork (N vs es s t) = Network vss ess s t (replicate (length vs * 2 + 1) [])
   where
     vss = map fv vs -- Edgetended vertices
     ess = map fe es  ++ map feRev es -- Convert edges and add their reverses
@@ -48,12 +49,37 @@ toComputeNetwork (N vs es s t) = Network vss ess s t (replicate (length vs + 1) 
 normVertices (Network vs es s t _) = filter (\(Vertex n h ex des) -> n /= s && n /= t) vs
 
 
--- goldbergStep net@(Network vs es s t netQ) vertId = if isNothing pushEdgeIds  -- If no pushable edge found
---     then push net pushEdgeIds -- We can push => push 
---     else liftVertex net vertId 1 -- Cannot push => lift
---         where
---             pushEdgeIds = getPushableEdgeIds
+runGoldbergIterN net n = iterate goldbergStep initNet !! n
+    where   
+        -- Convert and initialize the algorithm
+        initNet = goldbergInitialize net
 
+runGoldberg net = until goldbergShouldTerminate goldbergStep initNet
+    where   
+        -- Convert and initialize the algorithm
+        initNet = goldbergInitialize net
+
+{- Returns True if the Goldberg algorithm is finished, False otherwise. -}
+goldbergShouldTerminate :: Network -> Bool
+goldbergShouldTerminate net@(Network vs es s t bucketQueue) 
+    | isNothing $ getHighestVert bucketQueue = True
+    | otherwise = False
+
+goldbergStep :: Network -> Network
+goldbergStep net@(Network vs es s t netQ) = if not (null descEdges) -- If no pushable edge found
+    then push net (head descEdges) -- We can push => push 
+    else liftVertex net vertId 1 -- Cannot push => lift by 1
+        where
+            (Vertex _ _ _ descEdges) = findVertex vs vertId
+            vertId = unJust $ getHighestVert netQ
+
+
+getHighestVert :: [[VertId]] -> Maybe VertId
+getHighestVert (k : lowerKs) = if not (null k) -- If non-empty list
+    then Just (head k) -- We found it
+    else getHighestVert lowerKs -- Try lower buckets
+
+getHighestVert [] = Nothing -- Recurse bottom => means not found
 
 {- Pushes possible maximum through the provided edge -}
 push :: Network -> (VertId, VertId) -> Network
@@ -84,7 +110,7 @@ push net@(Network vs es s t netQ) (fr, to) = pushedNet
     
     -- New edges
     newEdge = Edge eFr eTo eCap (eFlow + diff)
-    newEdgeRev = Edge eTo eFr eCap (eFlow - diff)
+    newEdgeRev = Edge eTo eFr eCap ((-eFlow) - diff)
 
 {- Updates the bucket queue after the push based on provided arguments. -}
 updateQueue :: [[VertId]] -> Rational -> Vertex -> Vertex -> VertId -> VertId -> [[VertId]]
@@ -165,3 +191,13 @@ getOutEdges es vId = filter (\(Edge eFr _ _ _) -> eFr == vId) es
 {- Gets all INCOMING edges for the given vertex. -}
 getInEdges :: [Edge] -> VertId -> [Edge]
 getInEdges es vId = filter (\(Edge _ eTo _ _) -> eTo == vId) es
+
+
+{----------------------------------------------
+                    Utilies
+----------------------------------------------}
+getNetworkFlow :: Network -> Rational
+getNetworkFlow net@(Network vs es s t bucketQueue) = sum $ map (\(Edge _ _ _ flow) -> flow) (getInEdges es t)
+
+unJust (Just x) = x
+unJust Nothing  = error "This shouldn't have happened!"
