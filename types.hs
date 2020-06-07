@@ -6,7 +6,7 @@ module Types where
 -- Vertex
 data V =
     V
-        { id_ :: Int 
+        { id_ :: Int
         } -- Vertex <ID>
     deriving (Eq, Show)
 
@@ -15,7 +15,7 @@ data E =
     E
         { fr_ :: Int
         , to_ :: Int
-        , c_ :: Double
+        , c_ :: Rational
         } -- Edge { <from_ID>, <to_ID>, <capacity> }
     deriving (Eq, Show)
 
@@ -35,7 +35,7 @@ data Vertex =
     Vertex
         { vertex_name :: VertId
         , vertex_h :: Int
-        , vertex_ex :: Double
+        , vertex_ex :: Rational
         , vertex_des :: [(VertId, VertId)]
         }
     deriving (Eq, Show)
@@ -45,8 +45,8 @@ data Edge =
     Edge
         { edge_fr :: Int
         , edge_to :: Int
-        , eedge_c :: Double
-        , edge_f :: Double
+        , eedge_c :: Rational
+        , edge_f :: Rational
         }
     deriving (Eq, Show)
 
