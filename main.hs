@@ -18,17 +18,17 @@ import Types
 import Text.Pretty.Simple
 
 {- Initializes the user provided network for the Goldberg algorithm -}
-goldInitialze net@(N vs es s t) = foldr (flip push) (toEdgetendedNetwork net) (getOutEdges es s)
+goldbergInitialize net@(N vs es s t) = foldr (flip push) (toEdgetendedNetwork net) (getRawOutEdges es s)
 
-getOutEdges :: [E] -> Int -> [(VertId, VertId)]
-getOutEdges es from = map (\(E fr to _) -> (fr, to)) (filter (\(E fr to _) -> fr == from) es)
+getRawOutEdges :: [E] -> Int -> [(VertId, VertId)]
+getRawOutEdges es from = map (\(E fr to _) -> (fr, to)) (filter (\(E fr to _) -> fr == from) es)
 
 {- Converts user network to representation for the algorithm calculations -}
 toEdgetendedNetwork :: N -> Network
 toEdgetendedNetwork (N vs es s t) = Network vss ess s t (replicate (length vs + 1) [])
   where
     vss = map fv vs -- Edgetended vertices
-    ess = (map fe es)  ++ (map feRev es) -- Convert edges and add their reverses
+    ess = map fe es  ++ map feRev es -- Convert edges and add their reverses
     fv v@(V name)
         | name == s = Vertex name (length vs) capSum (map (\(E fr to c) -> (fr, to)) (filter (\ (E fr _ _) -> fr == name) es)  )
         | name == t = Vertex name 0 0.0 []
@@ -78,19 +78,54 @@ updateQueue netQ diff vFrom@(Vertex frId frH frEx frDes) vTo@(Vertex toId toH to
   where
     cleanQueue = getCleanQueue netQ frId toId
     
+    -- Decide if FROM vertex should belong to the Q (s,t excluded)
     fromVertexQueue = [frId | frEx - diff > 0 && frId /= s && frId /= t]
+    -- Decide if TO vertex should belong to the Q (s,t excluded)
     toVertexQueue = [toId | toEx + diff > 0 && toId /= s && toId /= t]
 
     -- Apppend this list into the corresponding buckets
     newNetQ = appendToKthList (appendToKthList cleanQueue fromVertexQueue frH) toVertexQueue toH
 
 
+{- Appends the provided list to the list at the height `h`. -}
 appendToKthList list listToAppend h = result
     where
+        -- Get sublist
         sublist = list !! h
+
+        -- Update the sublist
         newSublist = sublist ++ listToAppend
+
+        -- Insert updated item
         result = take h list ++ [newSublist] ++ drop (h + 1) list
 
+{- Lifts the provided vertex and updates the network accordingly. -}
+liftVertex :: Network -> VertId -> Int -> Network
+liftVertex net@(Network vs es s t bucketQueue) verToLiftId diff = Network updatedVertices es s t bucketQueue
+    where 
+        -- Outcoming edges
+        outEdges = getOutEdges es verToLiftId
+
+        -- Outcomming DESCENDING edges
+        outDescEdges = filterOnlyDesc vs outEdges diff
+
+        -- Get updated vertices
+        updatedVertices = [ newV | vert@(Vertex vId h ex _) <- vs , 
+            let newV = if vId == verToLiftId 
+                    then Vertex vId (h + diff) ex outDescEdges -- Updated vertex
+                    else vert ] -- Unchanged vertices
+
+
+{- Filteres out edges that are not descending after applying `diff` lift. -}
+filterOnlyDesc :: [Vertex] -> [Edge] -> Int -> [(VertId, VertId)]
+filterOnlyDesc vs outEdges diff = map (\ (Edge eFr eTo eC eF) -> (eFr, eTo)) (filter (
+    \(Edge eFr eTo eC eF) -> 
+        let 
+            (Vertex _ hFr _ _)  = findVertex vs eFr
+            (Vertex _ hTo _ _)  = findVertex vs eTo
+        in
+            hFr + diff > hTo
+    ) outEdges)
 
 {- Removes from and to vertices from active vertex queue. -}
 getCleanQueue q frId toId = map (filter (\vId -> vId /= frId && vId /= toId)) q
@@ -101,33 +136,33 @@ findVertex vs tarName = head $ filter (\(Vertex name _ _ _) -> name == tarName) 
 {-- Gets edge with specified from/to values -}
 findEdge es fr to = head $ filter (\(Edge _fr _to _ _) -> _fr == fr && _to == to) es
 
+{- Gets all OUTCOMING edges for the given vertex. -}
+getOutEdges :: [Edge] -> VertId -> [Edge]
+getOutEdges es vId = filter (\(Edge eFr _ _ _) -> eFr == vId) es
+
+{- Gets all INCOMING edges for the given vertex. -}
+getInEdges :: [Edge] -> VertId -> [Edge]
+getInEdges es vId = filter (\(Edge _ eTo _ _) -> eTo == vId) es
+
 {--------------------------------------------
  TESTS
 ---------------------------------------------}
 -- Test network #1
 net1_V = [V 0, V 1, V 2, V 3]
-
 net1_E = [E 0 1 2.0, E 0 2 4.0, E 1 2 3.0, E 2 3 5.0, E 1 3 1.0]
-
+net1 = N net1_V net1_E 0 3
 
 -- Test Queue
 t_q1 = [[1, 4, 5, 6], [], [3, 2]]
 
-
-
--- Checkpoints
-net1 = N net1_V net1_E 0 3
-
-
-
-
+{- Runs all the tests. -}
 testAll = do 
     putStrLn "TEST: `getCleanQueue`:"
     r1 <- return test_getCleanQueue
     putStrLn ""
     
-    putStrLn "TEST: `goldInitialze`:"
-    r2 <- return test_goldInitialze
+    putStrLn "TEST: `goldbergInitialize`:"
+    r2 <- return test_goldbergInitialize
     putStrLn ""
     
     putStrLn "TEST: `push`:"
@@ -135,6 +170,22 @@ testAll = do
     putStrLn ""
 
     return (and r1 && and r2 && and r3)
+
+{- TEST: `filterOnlyDesc` -}
+test_filterOnlyDesc = filterOnlyDesc vs outEdges 10
+    where 
+       net@(Network vs es s t netQ) = goldbergInitialize net1
+       outEdges = getOutEdges es 1
+
+{- TEST: `getOutEdges` -}
+test_getOutEdges = getOutEdges es 0
+    where 
+       net@(Network vs es s t netQ) = goldbergInitialize net1
+
+{- TEST: `getInEdges` -}
+test_getInEdges = getInEdges es 3
+    where 
+       net@(Network vs es s t netQ) = goldbergInitialize net1
 
 {- TEST: `getCleanQueue` -}
 test_getCleanQueue = [test1_q1, test2_q1, test3_q1]
@@ -146,11 +197,11 @@ test2_q1 = getCleanQueue t_q1 6 2 == [[1, 4, 5], [], [3]]
 test3_q1 = getCleanQueue t_q1 33 33 == [[1, 4, 5, 6], [], [3, 2]]
 
 
-{- TEST: `goldInitialze` -}
-test_goldInitialze = [test_initNet1]
+{- TEST: `goldbergInitialize` -}
+test_goldbergInitialize = [test_initNet1]
 
 test_initNet1 =
-    goldInitialze net1 ==
+    goldbergInitialize net1 ==
     (Network
     { network_vs =
         [ Vertex
@@ -187,7 +238,7 @@ test_initNet1 =
 test_push = [test1_pushInitNet1]
 
 test1_pushInitNet1 =
-    push (goldInitialze net1) (1, 2) ==
+    push (goldbergInitialize net1) (1, 2) ==
     (Network
     { network_vs =
         [ Vertex
@@ -219,3 +270,48 @@ test1_pushInitNet1 =
     , network_t = 3
     , network_Q = [[2], [], [], [], []]
     })
+
+
+
+{- TEST: `liftVertex` -}
+test1_liftVertex = 
+    let 
+       net@(Network vs es s t netQ) = goldbergInitialize net1
+       outEdges = getOutEdges es 1
+    in 
+        liftVertex net 1 1 ==
+        (Network
+        { network_vs =
+            [ Vertex
+                { vertex_name = 0
+                , vertex_h = 4
+                , vertex_ex = 9/ 1
+                , vertex_des = [(0, 1), (0, 2)]
+                }
+            , Vertex
+                { vertex_name = 1
+                , vertex_h = 1
+                , vertex_ex = 2/ 1
+                , vertex_des = [(1, 2), (1, 3)]
+                }
+            , Vertex
+                {vertex_name = 2, vertex_h = 0, vertex_ex = 4/ 1, vertex_des = []}
+            , Vertex
+                {vertex_name = 3, vertex_h = 0, vertex_ex = 0/ 1, vertex_des = []}
+            ]
+        , network_es =
+            [ Edge {edge_fr = 0, edge_to = 1, eedge_c = 2/ 1, edge_f = 2/ 1}
+            , Edge {edge_fr = 1, edge_to = 0, eedge_c = 2/ 1, edge_f = (-2)/ 1}
+            , Edge {edge_fr = 0, edge_to = 2, eedge_c = 4/ 1, edge_f = 4/ 1}
+            , Edge {edge_fr = 2, edge_to = 0, eedge_c = 4/ 1, edge_f = (-4)/ 1}
+            , Edge {edge_fr = 1, edge_to = 2, eedge_c = 3/ 1, edge_f = 0/ 1}
+            , Edge {edge_fr = 2, edge_to = 3, eedge_c = 5/ 1, edge_f = 0/ 1}
+            , Edge {edge_fr = 1, edge_to = 3, eedge_c = 1/ 1, edge_f = 0/ 1}
+            , Edge {edge_fr = 2, edge_to = 1, eedge_c = 3/ 1, edge_f = 0/ 1}
+            , Edge {edge_fr = 3, edge_to = 2, eedge_c = 5/ 1, edge_f = 0/ 1}
+            , Edge {edge_fr = 3, edge_to = 1, eedge_c = 1/ 1, edge_f = 0/ 1}
+            ]
+        , network_s = 0
+        , network_t = 3
+        , network_Q = [[2, 1], [], [], [], []]
+        })
