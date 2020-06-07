@@ -3,6 +3,7 @@ module Types where
 {- 
     User input data types 
 -}
+
 -- Vertex
 data V =
     V
@@ -41,6 +42,7 @@ data Vertex =
     deriving (Eq, Show)
 
 -- Edgetended edge holding flow going through it
+-- (Edge eFr eTo eC eF)
 data Edge =
     Edge
         { edge_fr :: Int
