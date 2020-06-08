@@ -12,10 +12,27 @@ import TestingNetworks -- << Test networks are generated in this module
 ---------------------------------------------}
 
 {- >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    Custom networks can be added and tested here.
+EXAMPLE: -}
+custNetV = [V 0,V 1,V 2,V 3] 
+custNetE = [E 0 2 4 0.0,E 0 1 2 0.0,E 1 2 3 0.0,E 1 3 1 0.0,E 2 3 5 0.0] 
+custNet = N net1V net1E 0 3 
+
+-- Get the final netrowk (you could use pPrint to pretty print it)
+testCustomNet = runGoldberg custNet
+-- Get the found flow value
+testCustomNetFlowVal = getNetworkFlow $ runGoldberg custNet
+-- Get the found flow
+testCustomNetFlow = pPrintFlow $ runGoldberg custNet
+
+
+{- >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     Separate functions for each available test network.  -}
 testGoldbergNet1 = runGoldberg net1
 testGoldbergNet2 = runGoldberg net2
 testGoldbergNet3 = runGoldberg net3
+testGoldbergNet4 = runGoldberg net4
+testGoldbergNet5 = runGoldberg net5
 
 {- >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     Runs all the ALGORITHM tests.  -}

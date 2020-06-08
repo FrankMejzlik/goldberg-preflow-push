@@ -1,7 +1,9 @@
 module Types where
 
 {- 
-    User input data types 
+    Data types for networks that the user will input and also get back.
+
+    No extra meta-data included.
 -}
 
 -- Vertex
@@ -14,10 +16,10 @@ data V =
 -- Edge
 data E =
     E
-        { e_er :: Int
+        { e_from :: Int
         , e_to :: Int
-        , e_c :: Rational
-        , e_f :: Rational
+        , e_cap :: Rational
+        , e_flow :: Rational
         } -- Edge { <from_ID>, <to_ID>, <capacity> }
     deriving (Eq, Show)
 
@@ -27,7 +29,9 @@ data N =
     deriving (Eq, Show)
 
 {- 
-    Algorithm meta-types used 
+    Algorithm meta-types used that are extended with some metadata.
+
+    E.g. descending edges lists, bucket queue of active vertices, etc.
 -}
 -- For IDs of vertices
 type VertId = Int

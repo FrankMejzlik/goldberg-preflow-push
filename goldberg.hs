@@ -2,18 +2,34 @@
 module Goldberg where
 
 {-
+
 The main source file for highest-label push-relabel (Goldberg) algorithm.
 
-Entry point function is `main`.
-
 IMPLEMENTATION:
-    The algorithm `goldberg(FlowNet net)` is divided into two separate phases:
-        1) `initialize` - Intializes the heights and sends the first preflow (wave) through outcoming edges of the SOURCE (`s`) vertex.
-        2) Until there are same ACTIVE nodes, do `processVertex(GoldNet net, Vertex v)`
+    The algorithm is run by the function `runGoldberg` and is divided into two main phases:
+        1) `goldbergInitialize` - Intializes the heights and sends the first preflow (wave) from the SOURCE vertex.
+        2) `goldbergStep` - One iteration of the algorithm that is repeated while there are some ACTIVE VERTICES.
+            
+            This is then divided into two main sub-functions that are called based on state of the currently
+            selected active vertex (always the one with the highest height):
 
-DATA TYPES:
-    FlowNet - Flow network (G, s, t, c) where we use G as list of neighbours where each edge also holds capacity ().
+            a) `push` - Pushes the maximum flow using the current excess through the provided edge.
+            b) `liftVertex` - Increases the height of the vertex and updates the descending edges for each vertex.
 
+    Many of the mentioned functions also call some helper functions, but those above mentioned are the key functions
+    to look at when inspecting the algorithm. These above mentioned also correspond to how the pseudocode of 
+    the Golberg algorithm is structured.
+
+
+DATA TYPES (defined in `types.hs`):
+    V - Vertex as taken from the user.
+    E - Edge as taken from the user.
+    N - Network as taken (and also returned to) from the user.
+
+    VertId - Identifier for vertices.
+    Vertex - Vertex with additional meta-data essential for the algorithm.
+    Edge - Edge with additional meta-data for essential the algorithm.
+    Network - Flow network with additional meta-data essential for the algorithm.
 -}
 
 -- Third party libs
@@ -23,23 +39,42 @@ import Data.Maybe
 -- My modules
 import Types
 
+{-  The MAIN algorithm function - computes and returns the final flow network with the
+    maximum flow (in form of flow values in it). -}
+runGoldberg :: N -> N
+runGoldberg net = toUserNetwork $ until goldbergShouldTerminate goldbergStep initNet
+    where   
+        -- Convert and initialize the algorithm
+        initNet = goldbergInitialize net
+
+
+{- Returns True if the Goldberg algorithm is finished, False otherwise. -}
+goldbergShouldTerminate :: Network -> Bool
+goldbergShouldTerminate net@(Network vs es s t bucketQueue) 
+    | isNothing $ getHighestVert bucketQueue = True
+    | otherwise = False
+
+
 {- Initializes the user provided network for the Goldberg algorithm -}
+goldbergInitialize :: N -> Network 
 goldbergInitialize net@(N vs es s t) = foldr (flip push) (toComputeNetwork net) (getRawOutEdges es s)
 
-getRawOutEdges :: [E] -> Int -> [(VertId, VertId)]
-getRawOutEdges es from = map (\(E fr to _ _) -> (fr, to)) (filter (\(E fr to _ _) -> fr == from) es)
 
-{- Converts compte network back to the user types. -}
+{- Converts compute network type back to the user types. 
+    This throws out any mata-data uninteresting to the user. -}
 toUserNetwork :: Network -> N
 toUserNetwork (Network vs es s t q) = N oldVs oldEs s t
     where
+        -- Convert vertices
         oldVs = map fv vs
-        oldEs = map fe es
 
+        -- Convert and filter out the helper reverse edges
+        oldEs = filter (\(E _ _ eC _) -> eC /= 0) (map fe es)
+
+        -- Conversion functions
         fv (Vertex vId _ _ _) = V vId
         fe (Edge eFr eTo eC eF) = E eFr eTo eC eF
 
---filterReverseEdges
 
 {- Converts user network to representation for the algorithm calculations -}
 toComputeNetwork :: N -> Network
@@ -57,29 +92,7 @@ toComputeNetwork (N vs es s t) = Network vss ess s t (replicate (length vs * 2 +
 
     capSum = sum (map (\(E _ _ c _) -> c) es) -- Sum of all edge capacities
 
-{- Gets only normal vertices from the network -}
-normVertices (Network vs es s t _) = filter (\(Vertex n h ex des) -> n /= s && n /= t) vs
-
-{- Compute N-th iteration of the algorithm. -}
-runGoldbergIterN net n = toUserNetwork $ iterate goldbergStep initNet !! n
-    where   
-        -- Convert and initialize the algorithm
-        initNet = goldbergInitialize net
-
-runGoldberg net = toUserNetwork $ until goldbergShouldTerminate goldbergStep initNet
-    where   
-        -- Convert and initialize the algorithm
-        initNet = goldbergInitialize net
-
-
-
-
-{- Returns True if the Goldberg algorithm is finished, False otherwise. -}
-goldbergShouldTerminate :: Network -> Bool
-goldbergShouldTerminate net@(Network vs es s t bucketQueue) 
-    | isNothing $ getHighestVert bucketQueue = True
-    | otherwise = False
-
+{- One iteration of the algorithm. Final value is the updated network. -}
 goldbergStep :: Network -> Network
 goldbergStep net@(Network vs es s t netQ) = if not (null descEdges) -- If no pushable edge found
     then push net (head descEdges) -- We can push => push 
@@ -89,6 +102,7 @@ goldbergStep net@(Network vs es s t netQ) = if not (null descEdges) -- If no pus
             vertId = unJust $ getHighestVert netQ
 
 
+{- Returns the highest vertext from the bucket queue. -}
 getHighestVert :: [[VertId]] -> Maybe VertId
 getHighestVert (k : lowerKs) = if not (null k) -- If non-empty list
     then Just (head k) -- We found it
@@ -154,6 +168,7 @@ appendToKthList list listToAppend h = result
         -- Insert updated item
         result = take h list ++ [newSublist] ++ drop (h + 1) list
 
+
 {- Lifts the provided vertex and updates the network accordingly. -}
 liftVertex :: Network -> VertId -> Int -> Network
 liftVertex net@(Network vs es s t bucketQueue) verToLiftId diff = Network updatedVertices es s t bucketQueue
@@ -167,7 +182,7 @@ liftVertex net@(Network vs es s t bucketQueue) verToLiftId diff = Network update
         -- Recompute also descending edges
         updatedVertices = recomputeDescLists liftedVerts es
 
-
+{- Recomputes descending edges list for every vertex. -}
 recomputeDescLists vs es = map updateFn vs
     where
         updateFn (Vertex vId h ex des) = (Vertex vId h ex outDescEdges)
@@ -217,17 +232,25 @@ getInEdges es vId = filter (\(Edge _ eTo _ _) -> eTo == vId) es
 getInRawEdges :: [E] -> VertId -> [E]
 getInRawEdges es vId = filter (\(E _ eTo _ _) -> eTo == vId) es
 
+{- Gets all outcoming edges from the list of User Edges (data E)/ -}
+getRawOutEdges :: [E] -> Int -> [(VertId, VertId)]
+getRawOutEdges es from = map (\(E fr to _ _) -> (fr, to)) (filter (\(E fr to _ _) -> fr == from) es)
 
 {----------------------------------------------
                     Utilies
 ----------------------------------------------}
+
+{- Returns the N-th iteration of the algorithm. -}
+runGoldbergIterN net n = toUserNetwork $ iterate goldbergStep initNet !! n
+    where   
+        -- Convert and initialize the algorithm
+        initNet = goldbergInitialize net
 
 {- Pretty prints the flow in the network -}
 pPrintFlow :: N -> IO ()
 pPrintFlow (N vs es s t) =
     do
         mapM_ print es
-
 
 {- Computes current flow of the provided network. -}
 getNetworkFlow :: N -> Rational
