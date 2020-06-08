@@ -10,7 +10,7 @@ module Types where
 data V =
     V
         { v_name :: Int
-        } -- Vertex <ID>
+        } 
     deriving (Eq, Show)
 
 -- Edge
@@ -20,12 +20,12 @@ data E =
         , e_to :: Int
         , e_cap :: Rational
         , e_flow :: Rational
-        } -- Edge { <from_ID>, <to_ID>, <capacity> }
+        } 
     deriving (Eq, Show)
 
 -- Network
 data N =
-    N [V] [E] Int Int -- FlowNetwork { <vertices>, <edges> }
+    N [V] [E] Int Int 
     deriving (Eq, Show)
 
 {- 
