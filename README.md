@@ -73,7 +73,7 @@ Many of the mentioned functions also call some helper functions, but those above
 ### Types used for algorithm computation
 - `VertId` - Identifier for vertices.
 - `Vertex` - Vertex with additional meta-data essential for the algorithm.
-- `Edge` - Edge with additional meta-data for essential the algorithm.
+- `Edge` - Edge with additional meta-data essential for the algorithm.
 - `Network` - Flow network with additional meta-data essential for the algorithm.
 
 For more information, please use comments directly inside the source files.

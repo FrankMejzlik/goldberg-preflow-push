@@ -9,7 +9,7 @@ module Types where
 -- Vertex
 data V =
     V
-        { e_name :: Int
+        { v_name :: Int
         } -- Vertex <ID>
     deriving (Eq, Show)
 
