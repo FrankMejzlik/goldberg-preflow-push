@@ -7,16 +7,17 @@ module Types where
 -- Vertex
 data V =
     V
-        { id_ :: Int
+        { e_name :: Int
         } -- Vertex <ID>
     deriving (Eq, Show)
 
 -- Edge
 data E =
     E
-        { fr_ :: Int
-        , to_ :: Int
-        , c_ :: Rational
+        { e_er :: Int
+        , e_to :: Int
+        , e_c :: Rational
+        , e_f :: Rational
         } -- Edge { <from_ID>, <to_ID>, <capacity> }
     deriving (Eq, Show)
 
@@ -28,6 +29,7 @@ data N =
 {- 
     Algorithm meta-types used 
 -}
+-- For IDs of vertices
 type VertId = Int
 
 -- Vertex holding extra list of descending edges
@@ -53,6 +55,7 @@ data Edge =
     deriving (Eq, Show)
 
 -- Network structure for algorithm computation with extra meta data
+-- (Network vs es s t q)
 data Network =
     Network
         { network_vs :: [Vertex]

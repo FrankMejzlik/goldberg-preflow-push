@@ -1,320 +1,191 @@
 
 -- Third party libs
-import Text.Pretty.Simple -- USAGE: stack ghci --package pretty-simple ./main.hs
+import Text.Pretty.Simple -- USAGE: stack ghci --package pretty-simple ./tests.hs
 
 -- My modules
 import Types
 import Goldberg
+import TestingNetworks -- << Test networks are generated in this module
 
 {--------------------------------------------
- TESTS
+ ============== TEST ALGORITHM =============
 ---------------------------------------------}
--- Test network #1
-net1_V = [V 0, V 1, V 2, V 3]
-net1_E = [E 0 1 2.0, E 0 2 4.0, E 1 2 3.0, E 2 3 5.0, E 1 3 1.0]
-net1 = N net1_V net1_E 0 3
+
+{- >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    Separate functions for each available test network.  -}
+testGoldbergNet1 = runGoldberg net1
+testGoldbergNet2 = runGoldberg net2
+testGoldbergNet3 = runGoldberg net3
+
+{- >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    Runs all the ALGORITHM tests.  -}
+testGoldberg = do    
+    let
+        testOneNet (name, net, maxFlow) = do
+            let 
+                resFlow = getNetworkFlow (runGoldberg net)
+                expFlow = maxFlow
+            putStrLn ("Testing: " ++ name)
+            putStrLn ("\tExpected = " ++ show (fromRational expFlow))
+            putStrLn ("\tResult = " ++ show (fromRational resFlow))
+            putStr " >>> "
+            print (expFlow == resFlow)
+
+    putStrLn "Testing all the networks..."
+    mapM_ testOneNet allTestNets
+{- <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< -}
 
 
--- Test network #2
-net2_V = [V 0, V 1, V 2, V 3, V 4, V 5]
-net2_E = [
-        E 0 1 16.0, 
-        E 0 2 13.0, 
 
-        E 1 2 4.0,
-        E 1 3 12.0,
+{--------------------------------------------
+ ============ TEST FUNCTIONALITY ============ 
+---------------------------------------------}
 
-        E 2 3 9.0,
-        E 2 4 14.0,
+{- >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    Runs all the FUNCTIONALITY tests.  -}
+runAllFuncTests = do 
+    let r1 = testGetCleanQueue
+        ro = testOther
+        r2 = testGoldbergInitialize
+        r3 = testPush
+        r4 = testLiftVertex
+    
+    putStrLn "Running all tests..."
+    return (and r1 && and r2 && and r3 && and r4 && and ro)
+{- <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< -}
 
-        E 4 3 7.0,
-        E 4 5 4.0,
 
-        E 3 5 20.0
+{--------------------------------------------
+                Unit tests
+---------------------------------------------}
+{- 
+    TEST: `filterOnlyDescNonSat` 
+-}
+testOther = [
+    test1_filterOnlyDescNonSat, 
+    test1GetOutEdges, test2GetOutEdges, test3GetOutEdges, test4GetOutEdges, test5GetOutEdges, test6GetOutEdges,
+    test1GetInEdges, test2GetInEdges, test3GetInEdges, test4GetInEdges, test5GetInEdges, test6GetInEdges
     ]
-net2 = N net2_V net2_E 0 5
+
+{- `filterOnlyDescNonSat` -}
+test1_filterOnlyDescNonSat = filterOnlyDescNonSat vs outEdges 10 == [(1,0),(1,2),(1,3)]
+    where 
+       net@(Network vs es s t netQ) = goldbergInitialize net1
+       outEdges = getOutEdges es 1
+
+{- `getOutEdges` -}
+test1GetOutEdges = length (getOutEdges es 0) == 2 where es = network_es $ goldbergInitialize net2
+test2GetOutEdges = length (getOutEdges es 1) == 3 where es = network_es $ goldbergInitialize net2
+test3GetOutEdges = length (getOutEdges es 2) == 4 where es = network_es $ goldbergInitialize net2
+test4GetOutEdges = length (getOutEdges es 3) == 4 where es = network_es $ goldbergInitialize net2
+test5GetOutEdges = length (getOutEdges es 4) == 3 where es = network_es $ goldbergInitialize net2
+test6GetOutEdges = length (getOutEdges es 5) == 2 where es = network_es $ goldbergInitialize net2
+
+{- `getInEdges` -}
+test1GetInEdges = length (getInEdges es 0) == 2 where es = network_es $ goldbergInitialize net2
+test2GetInEdges = length (getInEdges es 1) == 3 where es = network_es $ goldbergInitialize net2
+test3GetInEdges = length (getInEdges es 2) == 4 where es = network_es $ goldbergInitialize net2
+test4GetInEdges = length (getInEdges es 3) == 4 where es = network_es $ goldbergInitialize net2
+test5GetInEdges = length (getInEdges es 4) == 3 where es = network_es $ goldbergInitialize net2
+test6GetInEdges = length (getInEdges es 5) == 2 where es = network_es $ goldbergInitialize net2
+
+{- 
+    TEST: `getCleanQueue` 
+-}
+testGetCleanQueue = [test1_getCleanQueue, test2_getCleanQueue, test3_getCleanQueue]
 
 -- Test Queue
 t_q1 = [[1, 4, 5, 6], [], [3, 2]]
 
-{- +++++++++++++++++++++++ -}
-{-  -}
-mainTest = runGoldberg net1
+-- Test1 `getCleanQueue` on net1
+test1_getCleanQueue = getCleanQueue t_q1 3 1 == [[4, 5, 6], [], [2]]
+
+-- Test2 `getCleanQueue` on net1
+test2_getCleanQueue = getCleanQueue t_q1 6 2 == [[1, 4, 5], [], [3]]
+
+-- Test3 `getCleanQueue` on net1
+test3_getCleanQueue = getCleanQueue t_q1 33 33 == [[1, 4, 5, 6], [], [3, 2]]
 
 
-{- -}
-{- +++++++++++++++++++++++ -}
+{- 
+    TEST: `goldbergInitialize` 
+-}
+testGoldbergInitialize = [test_initNet1, test_initNet2]
 
-
-{- Runs all the tests. -}
-testAll = do 
-    let r1 = test_getCleanQueue
-        ro = test_other
-        r2 = test_goldbergInitialize
-        r3 = test_push
-        r4 = test_liftVertex
-    
-    putStrLn "Running all tests..."
-    return (and r1 && and r2 && and r3 && and r4 && and ro)
-
-{- TEST: `filterOnlyDescNonSat` -}
-test_other = [test_filterOnlyDescNonSat, test_getOutEdges, test_getInEdges]
-
-test_filterOnlyDescNonSat = filterOnlyDescNonSat vs outEdges 10 == [(1,0),(1,2),(1,3)]
-    where 
-       net@(Network vs es s t netQ) = goldbergInitialize net1
-       outEdges = getOutEdges es 1
-
-{- TEST: `getOutEdges` -}
-test_getOutEdges = getOutEdges es 0 == 
-        [Edge {edge_fr = 0, edge_to = 1, eedge_c = 2 / 1, edge_f = 2 / 1},Edge {edge_fr = 0, edge_to = 2, eedge_c = 4 / 1, edge_f = 4 / 1}]
-    where 
-       net@(Network vs es s t netQ) = goldbergInitialize net1
-
-{- TEST: `getInEdges` -}
-test_getInEdges = getInEdges es 3 == 
-        [Edge {edge_fr = 2, edge_to = 3, eedge_c = 5 / 1, edge_f = 0 / 1},Edge {edge_fr = 1, edge_to = 3, eedge_c = 1 / 1, edge_f = 0 / 1}]
-    where 
-       net@(Network vs es s t netQ) = goldbergInitialize net1
-
-{- TEST: `getCleanQueue` -}
-test_getCleanQueue = [test1_q1, test2_q1, test3_q1]
-
-test1_q1 = getCleanQueue t_q1 3 1 == [[4, 5, 6], [], [2]]
-
-test2_q1 = getCleanQueue t_q1 6 2 == [[1, 4, 5], [], [3]]
-
-test3_q1 = getCleanQueue t_q1 33 33 == [[1, 4, 5, 6], [], [3, 2]]
-
-
-{- TEST: `goldbergInitialize` -}
-test_goldbergInitialize = [test_initNet1]
-
-test_initNet2 =
-    goldbergInitialize net2 ==
-    (Network
-    { network_vs =
-        [ Vertex
-            { vertex_name = 0
-            , vertex_h = 4
-            , vertex_ex = 9 / 1
-            , vertex_des = []
-            }
-        , Vertex
-            {vertex_name = 1, vertex_h = 0, vertex_ex = 2 / 1, vertex_des = []}
-        , Vertex
-            {vertex_name = 2, vertex_h = 0, vertex_ex = 4 / 1, vertex_des = []}
-        , Vertex
-            {vertex_name = 3, vertex_h = 0, vertex_ex = 0 / 1, vertex_des = []}
-        ]
-    , network_es =
-        [ Edge {edge_fr = 0, edge_to = 1, eedge_c = 2 / 1, edge_f = 2 / 1}
-        , Edge {edge_fr = 1, edge_to = 0, eedge_c = 2 / 1, edge_f = (-2) / 1}
-        , Edge {edge_fr = 0, edge_to = 2, eedge_c = 4 / 1, edge_f = 4 / 1}
-        , Edge {edge_fr = 2, edge_to = 0, eedge_c = 4 / 1, edge_f = (-4) / 1}
-        , Edge {edge_fr = 1, edge_to = 2, eedge_c = 3 / 1, edge_f = 0 / 1}
-        , Edge {edge_fr = 2, edge_to = 3, eedge_c = 5 / 1, edge_f = 0 / 1}
-        , Edge {edge_fr = 1, edge_to = 3, eedge_c = 1 / 1, edge_f = 0 / 1}
-        , Edge {edge_fr = 2, edge_to = 1, eedge_c = 3 / 1, edge_f = 0 / 1}
-        , Edge {edge_fr = 3, edge_to = 2, eedge_c = 5 / 1, edge_f = 0 / 1}
-        , Edge {edge_fr = 3, edge_to = 1, eedge_c = 1 / 1, edge_f = 0 / 1}
-        ]
-    , network_s = 0
-    , network_t = 3
-    , network_Q = [[2, 1], [], [], [], []]
-    })
-
+-- Network #1
 test_initNet1 =
-    goldbergInitialize net1 ==
-    (Network
-    { network_vs =
-        [ Vertex
-            { vertex_name = 0
-            , vertex_h = 4
-            , vertex_ex = 9 / 1
-            , vertex_des = []
-            }
-        , Vertex
-            {vertex_name = 1, vertex_h = 0, vertex_ex = 2 / 1, vertex_des = []}
-        , Vertex
-            {vertex_name = 2, vertex_h = 0, vertex_ex = 4 / 1, vertex_des = []}
-        , Vertex
-            {vertex_name = 3, vertex_h = 0, vertex_ex = 0 / 1, vertex_des = []}
-        ]
-    , network_es =
-        [ Edge {edge_fr = 0, edge_to = 1, eedge_c = 2 / 1, edge_f = 2 / 1}
-        , Edge {edge_fr = 1, edge_to = 0, eedge_c = 2 / 1, edge_f = (-2) / 1}
-        , Edge {edge_fr = 0, edge_to = 2, eedge_c = 4 / 1, edge_f = 4 / 1}
-        , Edge {edge_fr = 2, edge_to = 0, eedge_c = 4 / 1, edge_f = (-4) / 1}
-        , Edge {edge_fr = 1, edge_to = 2, eedge_c = 3 / 1, edge_f = 0 / 1}
-        , Edge {edge_fr = 2, edge_to = 3, eedge_c = 5 / 1, edge_f = 0 / 1}
-        , Edge {edge_fr = 1, edge_to = 3, eedge_c = 1 / 1, edge_f = 0 / 1}
-        , Edge {edge_fr = 2, edge_to = 1, eedge_c = 3 / 1, edge_f = 0 / 1}
-        , Edge {edge_fr = 3, edge_to = 2, eedge_c = 5 / 1, edge_f = 0 / 1}
-        , Edge {edge_fr = 3, edge_to = 1, eedge_c = 1 / 1, edge_f = 0 / 1}
-        ]
-    , network_s = 0
-    , network_t = 3
-    , network_Q = [[2, 1], [], [], [], []]
-    })
-
-{- TEST: `push` -}
-test_push = [test1_pushInitNet1]
-
-test1_pushInitNet1 =
-    push (goldbergInitialize net1) (1, 2) ==
-    (Network
-    { network_vs =
-        [ Vertex
-            {vertex_name = 1, vertex_h = 0, vertex_ex = 0 / 1, vertex_des = []}
-        , Vertex
-            {vertex_name = 2, vertex_h = 0, vertex_ex = 6 / 1, vertex_des = []}
-        , Vertex
-            { vertex_name = 0
-            , vertex_h = 4
-            , vertex_ex = 9 / 1
-            , vertex_des = []
-            }
-        , Vertex
-            {vertex_name = 3, vertex_h = 0, vertex_ex = 0 / 1, vertex_des = []}
-        ]
-    , network_es =
-        [ Edge {edge_fr = 1, edge_to = 2, eedge_c = 3 / 1, edge_f = 2 / 1}
-        , Edge {edge_fr = 2, edge_to = 1, eedge_c = 3 / 1, edge_f = (-2) / 1}
-        , Edge {edge_fr = 0, edge_to = 1, eedge_c = 2 / 1, edge_f = 2 / 1}
-        , Edge {edge_fr = 1, edge_to = 0, eedge_c = 2 / 1, edge_f = (-2) / 1}
-        , Edge {edge_fr = 0, edge_to = 2, eedge_c = 4 / 1, edge_f = 4 / 1}
-        , Edge {edge_fr = 2, edge_to = 0, eedge_c = 4 / 1, edge_f = (-4) / 1}
-        , Edge {edge_fr = 2, edge_to = 3, eedge_c = 5 / 1, edge_f = 0 / 1}
-        , Edge {edge_fr = 1, edge_to = 3, eedge_c = 1 / 1, edge_f = 0 / 1}
-        , Edge {edge_fr = 3, edge_to = 2, eedge_c = 5 / 1, edge_f = 0 / 1}
-        , Edge {edge_fr = 3, edge_to = 1, eedge_c = 1 / 1, edge_f = 0 / 1}
-        ]
-    , network_s = 0
-    , network_t = 3
-    , network_Q = [[2], [], [], [], []]
-    })
-
-test2_pushInitNet1 =
-    push ( liftVertex (goldbergInitialize net1) 2 4) (2, 1) ==
-    (Network
-    { network_vs =
-        [ Vertex
-            { vertex_name = 2
-            , vertex_h = 4
-            , vertex_ex = 1 / 1
-            , vertex_des = [(2, 3)]
-            }
-        , Vertex
-            {vertex_name = 1, vertex_h = 0, vertex_ex = 5 / 1, vertex_des = []}
-        , Vertex
-            {vertex_name = 0, vertex_h = 4, vertex_ex = 9 / 1, vertex_des = []}
-        , Vertex
-            {vertex_name = 3, vertex_h = 0, vertex_ex = 0 / 1, vertex_des = []}
-        ]
-    , network_es =
-        [ Edge {edge_fr = 2, edge_to = 1, eedge_c = 3 / 1, edge_f = 3 / 1}
-        , Edge {edge_fr = 1, edge_to = 2, eedge_c = 3 / 1, edge_f = (-3) / 1}
-        , Edge {edge_fr = 0, edge_to = 1, eedge_c = 2 / 1, edge_f = 2 / 1}
-        , Edge {edge_fr = 1, edge_to = 0, eedge_c = 2 / 1, edge_f = (-2) / 1}
-        , Edge {edge_fr = 0, edge_to = 2, eedge_c = 4 / 1, edge_f = 4 / 1}
-        , Edge {edge_fr = 2, edge_to = 0, eedge_c = 4 / 1, edge_f = (-4) / 1}
-        , Edge {edge_fr = 2, edge_to = 3, eedge_c = 5 / 1, edge_f = 0 / 1}
-        , Edge {edge_fr = 1, edge_to = 3, eedge_c = 1 / 1, edge_f = 0 / 1}
-        , Edge {edge_fr = 3, edge_to = 2, eedge_c = 5 / 1, edge_f = 0 / 1}
-        , Edge {edge_fr = 3, edge_to = 1, eedge_c = 1 / 1, edge_f = 0 / 1}
-        ]
-    , network_s = 0
-    , network_t = 3
-    , network_Q = [[1], [], [], [], [2]]
-    })
-
-
-{- TEST: `liftVertex` -}
-test_liftVertex = [test1_liftVertex, test2_liftVertex]
-
-test1_liftVertex = 
     let 
-       net@(Network vs es s t netQ) = goldbergInitialize net1
+        postNet@(Network vs es s t q) = goldbergInitialize net1
+    in
+        -- Check post-conditions
+        vertex_ex (findVertex vs 1) == 2 
+        && vertex_ex (findVertex vs 2) == 4
+        && ( edge_f (fst (findEdge es 0 1)) == 2 && edge_f (snd (findEdge es 0 1)) == -2)
+        && ( edge_f (fst (findEdge es 0 2)) == 4 && edge_f (snd (findEdge es 0 2)) == -4)
+
+-- Network #2
+test_initNet2 =
+    let 
+        postNet@(Network vs es s t q) = goldbergInitialize net2
+    in
+        -- Check post-conditions
+        vertex_ex (findVertex vs 1) == 16
+        && vertex_ex (findVertex vs 2) == 13
+        && ( edge_f (fst (findEdge es 0 1)) == 16 && edge_f (snd (findEdge es 0 1)) == -16)
+        && ( edge_f (fst (findEdge es 0 2)) == 13 && edge_f (snd (findEdge es 0 2)) == -13)
+
+{- 
+    TEST: `push` 
+-}
+testPush = [test1PushInitNet1, test2PushInitNet1]
+
+-- Push in net1 through (1, 2)
+test1PushInitNet1 =
+    let 
+        postNet@(Network vs es s t q) = push (goldbergInitialize net1) (1, 2)
+    in
+        -- Check post-conditions
+        vertex_ex (findVertex vs 1) == 0 
+        && vertex_ex (findVertex vs 2) == 6
+        && ( edge_f (fst (findEdge es 1 2)) == 2 && edge_f (snd (findEdge es 1 2)) == -2)
+    
+-- Push in net1 through (2, 3)
+test2PushInitNet1 =
+    let 
+        postNet@(Network vs es s t q) = push (goldbergInitialize net1) (2, 3)
+    in
+        -- Check post-conditions
+        vertex_ex (findVertex vs 2) == 0
+        && vertex_ex (findVertex vs 3) == 4
+        && ( edge_f (fst (findEdge es 2 3)) == 4 && edge_f (snd (findEdge es 2 3)) == -4)
+
+
+{- 
+    TEST: `liftVertex` 
+-}
+testLiftVertex = [test1LiftVertex, test2LiftVertex]
+
+-- Lift1 in net1
+test1LiftVertex = 
+    let 
+       net = goldbergInitialize net1
        outEdges = getOutEdges es 1
+       liftedNet@(Network vs es _ _ _) = liftVertex net 1 5
     in 
-        liftVertex net 1 1 ==
-        (Network
-        { network_vs =
-            [ Vertex
-                { vertex_name = 0
-                , vertex_h = 4
-                , vertex_ex = 9/ 1
-                , vertex_des = []
-                }
-            , Vertex
-                { vertex_name = 1
-                , vertex_h = 1
-                , vertex_ex = 2/ 1
-                , vertex_des = [(1, 2), (1, 3)]
-                }
-            , Vertex
-                {vertex_name = 2, vertex_h = 0, vertex_ex = 4/ 1, vertex_des = []}
-            , Vertex
-                {vertex_name = 3, vertex_h = 0, vertex_ex = 0/ 1, vertex_des = []}
-            ]
-        , network_es =
-            [ Edge {edge_fr = 0, edge_to = 1, eedge_c = 2/ 1, edge_f = 2/ 1}
-            , Edge {edge_fr = 1, edge_to = 0, eedge_c = 2/ 1, edge_f = (-2)/ 1}
-            , Edge {edge_fr = 0, edge_to = 2, eedge_c = 4/ 1, edge_f = 4/ 1}
-            , Edge {edge_fr = 2, edge_to = 0, eedge_c = 4/ 1, edge_f = (-4)/ 1}
-            , Edge {edge_fr = 1, edge_to = 2, eedge_c = 3/ 1, edge_f = 0/ 1}
-            , Edge {edge_fr = 2, edge_to = 3, eedge_c = 5/ 1, edge_f = 0/ 1}
-            , Edge {edge_fr = 1, edge_to = 3, eedge_c = 1/ 1, edge_f = 0/ 1}
-            , Edge {edge_fr = 2, edge_to = 1, eedge_c = 3/ 1, edge_f = 0/ 1}
-            , Edge {edge_fr = 3, edge_to = 2, eedge_c = 5/ 1, edge_f = 0/ 1}
-            , Edge {edge_fr = 3, edge_to = 1, eedge_c = 1/ 1, edge_f = 0/ 1}
-            ]
-        , network_s = 0
-        , network_t = 3
-        , network_Q = [[2, 1], [], [], [], []]
-        })
+        -- Check post-conditions
+        null (vertex_des (findVertex vs 0))
+        && vertex_h (findVertex vs 1) == 5 -- Must have the correct height
+        && length (vertex_des (findVertex vs 1)) ==  3 -- It is now the highest
 
-test2_liftVertex = 
-    liftVertex (goldbergInitialize net1) 1 10 ==
-    (Network
-    { network_vs =
-        [ Vertex
-            { vertex_name = 0
-            , vertex_h = 4
-            , vertex_ex = 9 / 1
-            , vertex_des = []
-            }
-        , Vertex
-            { vertex_name = 1
-            , vertex_h = 10
-            , vertex_ex = 2 / 1
-            , vertex_des = [(1, 0), (1, 2), (1, 3)]
-            }
-        , Vertex
-            {vertex_name = 2, vertex_h = 0, vertex_ex = 4 / 1, vertex_des = []}
-        , Vertex
-            {vertex_name = 3, vertex_h = 0, vertex_ex = 0 / 1, vertex_des = []}
-        ]
-    , network_es =
-        [ Edge {edge_fr = 0, edge_to = 1, eedge_c = 2 / 1, edge_f = 2 / 1}
-        , Edge {edge_fr = 1, edge_to = 0, eedge_c = 2 / 1, edge_f = (-2) / 1}
-        , Edge {edge_fr = 0, edge_to = 2, eedge_c = 4 / 1, edge_f = 4 / 1}
-        , Edge {edge_fr = 2, edge_to = 0, eedge_c = 4 / 1, edge_f = (-4) / 1}
-        , Edge {edge_fr = 1, edge_to = 2, eedge_c = 3 / 1, edge_f = 0 / 1}
-        , Edge {edge_fr = 2, edge_to = 3, eedge_c = 5 / 1, edge_f = 0 / 1}
-        , Edge {edge_fr = 1, edge_to = 3, eedge_c = 1 / 1, edge_f = 0 / 1}
-        , Edge {edge_fr = 2, edge_to = 1, eedge_c = 3 / 1, edge_f = 0 / 1}
-        , Edge {edge_fr = 3, edge_to = 2, eedge_c = 5 / 1, edge_f = 0 / 1}
-        , Edge {edge_fr = 3, edge_to = 1, eedge_c = 1 / 1, edge_f = 0 / 1}
-        ]
-    , network_s = 0
-    , network_t = 3
-    , network_Q = [[2, 1], [], [], [], []]
-    })
+-- Lift1 in net1
+test2LiftVertex = 
+    let 
+       net = goldbergInitialize net1
+       outEdges = getOutEdges es 1
+       liftedNet@(Network vs es _ _ _) = liftVertex net 1 1
+    in 
+         -- Check post-conditions
+        null (vertex_des (findVertex vs 0))
+        && vertex_h (findVertex vs 1) == 1  -- Must have the correct height
+        && length (vertex_des (findVertex vs 1)) ==  2
 
-
-{- Test the whole algorithm on different flow networks. -}
-test_goldberg = [test1_goldberg, test2_goldberg]
-test1_goldberg = getNetworkFlow $ runGoldberg net1
-test2_goldberg = getNetworkFlow $ runGoldberg net2

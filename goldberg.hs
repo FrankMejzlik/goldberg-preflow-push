@@ -27,7 +27,19 @@ import Types
 goldbergInitialize net@(N vs es s t) = foldr (flip push) (toComputeNetwork net) (getRawOutEdges es s)
 
 getRawOutEdges :: [E] -> Int -> [(VertId, VertId)]
-getRawOutEdges es from = map (\(E fr to _) -> (fr, to)) (filter (\(E fr to _) -> fr == from) es)
+getRawOutEdges es from = map (\(E fr to _ _) -> (fr, to)) (filter (\(E fr to _ _) -> fr == from) es)
+
+{- Converts compte network back to the user types. -}
+toUserNetwork :: Network -> N
+toUserNetwork (Network vs es s t q) = N oldVs oldEs s t
+    where
+        oldVs = map fv vs
+        oldEs = map fe es
+
+        fv (Vertex vId _ _ _) = V vId
+        fe (Edge eFr eTo eC eF) = E eFr eTo eC eF
+
+--filterReverseEdges
 
 {- Converts user network to representation for the algorithm calculations -}
 toComputeNetwork :: N -> Network
@@ -36,28 +48,31 @@ toComputeNetwork (N vs es s t) = Network vss ess s t (replicate (length vs * 2 +
     vss = map fv vs -- Edgetended vertices
     ess = map fe es  ++ map feRev es -- Convert edges and add their reverses
     fv v@(V name)
-        | name == s = Vertex name (length vs) capSum (map (\(E fr to c) -> (fr, to)) (filter (\ (E fr _ _) -> fr == name) es)  )
+        | name == s = Vertex name (length vs) capSum (map (\(E fr to _ _) -> (fr, to)) (filter (\ (E fr _ _ _) -> fr == name) es)  )
         | name == t = Vertex name 0 0.0 []
         | otherwise = Vertex name 0 0.0 []
     
-    fe (E fr to c) = Edge fr to c 0.0
-    feRev (E fr to c) = Edge to fr c 0.0
+    fe (E fr to c _) = Edge fr to c 0.0
+    feRev (E fr to c _) = Edge to fr 0.0 0.0
 
-    capSum = sum (map (\(E _ _ c) -> c) es) -- Sum of all edge capacities
+    capSum = sum (map (\(E _ _ c _) -> c) es) -- Sum of all edge capacities
 
 {- Gets only normal vertices from the network -}
 normVertices (Network vs es s t _) = filter (\(Vertex n h ex des) -> n /= s && n /= t) vs
 
-
-runGoldbergIterN net n = iterate goldbergStep initNet !! n
+{- Compute N-th iteration of the algorithm. -}
+runGoldbergIterN net n = toUserNetwork $ iterate goldbergStep initNet !! n
     where   
         -- Convert and initialize the algorithm
         initNet = goldbergInitialize net
 
-runGoldberg net = until goldbergShouldTerminate goldbergStep initNet
+runGoldberg net = toUserNetwork $ until goldbergShouldTerminate goldbergStep initNet
     where   
         -- Convert and initialize the algorithm
         initNet = goldbergInitialize net
+
+
+
 
 {- Returns True if the Goldberg algorithm is finished, False otherwise. -}
 goldbergShouldTerminate :: Network -> Bool
@@ -105,12 +120,12 @@ push net@(Network vs es s t netQ) (fr, to) = pushedNet
     
     -- Old edges
     edgeRes = eCap - eFlow
-    foundEdge@(Edge eFr eTo eCap eFlow) = findEdge es fr to
+    ( foundEdge@(Edge eFr eTo eCap eFlow), foundEdgeRev@(Edge erFr erTo erCap erFlow) ) = findUnsaturatedEdge es fr to
     restEdges = filter (\(Edge _fr _to _ _) -> not ( (_fr == fr || _fr == to) && (_to == fr || _to == to) ) ) es
     
     -- New edges
     newEdge = Edge eFr eTo eCap (eFlow + diff)
-    newEdgeRev = Edge eTo eFr eCap ((-eFlow) - diff)
+    newEdgeRev = Edge erFr erTo erCap ((-eFlow) - diff)
 
 {- Updates the bucket queue after the push based on provided arguments. -}
 updateQueue :: [[VertId]] -> Rational -> Vertex -> Vertex -> VertId -> VertId -> [[VertId]]
@@ -182,7 +197,13 @@ getCleanQueue q frId toId = map (filter (\vId -> vId /= frId && vId /= toId)) q
 findVertex vs tarName = head $ filter (\(Vertex name _ _ _) -> name == tarName) vs
 
 {-- Gets edge with specified from/to values -}
-findEdge es fr to = head $ filter (\(Edge _fr _to _ _) -> _fr == fr && _to == to) es
+findUnsaturatedEdge es fr to = (mainEdge, revEdge)
+    where
+        -- Able to be pushed through
+        mainEdge@(Edge _fr _to _c _f) = head $ filter (\(Edge _fr _to _c _f) -> _fr == fr && _to == to && _c - _f > 0) es
+        
+        -- It's reverse partner - it is uniquely determined by exactly inverse flow value
+        revEdge = head $ filter (\(Edge _rfr _rto _rc _rf) -> _rto == fr && _rfr == to && _rf == (-_f) ) es
 
 {- Gets all OUTCOMING edges for the given vertex. -}
 getOutEdges :: [Edge] -> VertId -> [Edge]
@@ -192,12 +213,35 @@ getOutEdges es vId = filter (\(Edge eFr _ _ _) -> eFr == vId) es
 getInEdges :: [Edge] -> VertId -> [Edge]
 getInEdges es vId = filter (\(Edge _ eTo _ _) -> eTo == vId) es
 
+{- Gets all INCOMING RAW edges for the given vertex. -}
+getInRawEdges :: [E] -> VertId -> [E]
+getInRawEdges es vId = filter (\(E _ eTo _ _) -> eTo == vId) es
+
 
 {----------------------------------------------
                     Utilies
 ----------------------------------------------}
-getNetworkFlow :: Network -> Rational
-getNetworkFlow net@(Network vs es s t bucketQueue) = sum $ map (\(Edge _ _ _ flow) -> flow) (getInEdges es t)
 
+{- Pretty prints the flow in the network -}
+pPrintFlow :: N -> IO ()
+pPrintFlow (N vs es s t) =
+    do
+        mapM_ print es
+
+
+{- Computes current flow of the provided network. -}
+getNetworkFlow :: N -> Rational
+getNetworkFlow net@(N vs es s t) = sum $ map (\(E _ _ _ flow) -> flow) (getInRawEdges es t)
+
+{- Finds the specified edge (and it's reverse partner). -}
+findEdge es fr to = (mainEdge, revEdge)
+    where
+        -- Able to be pushed through
+        mainEdge@(Edge _fr _to _c _f) = head $ filter (\(Edge _fr _to _c _f) -> _fr == fr && _to == to) es
+        
+        -- It's reverse partner - it is uniquely determined by exactly inverse flow value
+        revEdge = head $ filter (\(Edge _rfr _rto _rc _rf) -> _rto == fr && _rfr == to && _rf == (-_f) ) es
+
+{- Unjusts the provided argument. -}
 unJust (Just x) = x
 unJust Nothing  = error "This shouldn't have happened!"
