@@ -13,6 +13,30 @@ You need GHC(i) toolchain (or any other Haskell platform) to run this. Provided 
 ghci ./tests.hs
 ```
 
+# Testing data
+The main algorithm logic is in the `goldberg.hs` file. 
+
+Testing functions are in `tests.hs` where you can use predefined networks (that are generated in the file `testingNetworks.hs` from the source JSON networks in `testing_data/networks/`).
+
+Those networks are bound to variables `net1` - `net5`, that you can use.
+
+Good starting points are:
+- `testGoldberg` - It runs the algorithm on all the predefined networks - shows expected and real flow values.
+- `testGoldbergNet1`,  `testGoldbergNet2`, ... - Runs the algorithm on the specified network and returns it (you can pPrint the final flow using funciton `pPrintFlow`)
+- You can, of course, define your own network and run it. Example function how you can do it is `testCustomNet`, `testCustomNetFlowVal` and `testCustomNetFlow`.
+
+### Testing networks
+#### net1
+![net1](testing_data/networks/net1.png)
+#### net2
+![net2](testing_data/networks/net2.png)
+#### net3
+![net3](testing_data/networks/net3.png)
+#### net4
+![net4](testing_data/networks/net4.png)
+#### net5
+![net5](testing_data/networks/net5.png)
+
 # How to use
 ```
 # Suppose we have a variable with network defined `network`
@@ -28,17 +52,6 @@ getNetworkFlow $ runGoldberg network
 pPrintFlow $ runGoldberg network
 ```
 
-# Testing data
-The main algorithm logic is in the `goldberg.hs` file. 
-
-Testing functions are in `tests.hs` where you can use predefined networks (that are generated in the file `testingNetworks.hs` from the source JSON networks in `testing_data/networks/`).
-
-Those networks are bound to variables `net1` - `net5`, that you can use.
-
-Good starting points are:
-- `testGoldberg` - It runs the algorithm on all the predefined networks - shows expected and real flow values.
-- `testGoldbergNet1`,  `testGoldbergNet2`, ... - Runs the algorithm on the specified network and returns it (you can pPrint the final flow using funciton `pPrintFlow`)
-- You can, of course, define your own network and run it. Example function how you can do it is `testCustomNet`, `testCustomNetFlowVal` and `testCustomNetFlow`.
 
 # Developer documentation
 ## Implementation:
@@ -53,8 +66,8 @@ Many of the mentioned functions also call some helper functions, but those above
 
 ## Data types (defined in `types.hs`):
 ### User input/output types
-- `V` - Vertex as taken fron the user.
-- `E` - Edge as taken fron the user.
+- `V` - Vertex as taken from the user.
+- `E` - Edge as taken from the user.
 - `N` - Network as taken (and also returned to) from the user.
 
 ### Types used for algorithm computation
